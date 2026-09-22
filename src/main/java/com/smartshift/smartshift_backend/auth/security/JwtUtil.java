@@ -1,89 +1,69 @@
 package com.smartshift.smartshift_backend.auth.security;
 
+import java.time.Instant;
 
-import com.smartshift.smartshift_backend.auth.entity.User;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.SecretKey;
-import java.util.Date;
-
+import com.smartshift.smartshift_backend.auth.entity.User;
 
 @Component
 public class JwtUtil {
+
     private static final String ISSUER = "smart-shift";
     private static final String TOKEN_TYPE_CLAIM = "token_type";
     private static final String ACCESS_TOKEN_TYPE = "access";
     private static final String REFRESH_TOKEN_TYPE = "refresh";
 
-    @Value("${jwt.access.secret}")
-    private String accessSecret;
-
     @Value("${jwt.access.expiration}")
     private long accessExpiry;
-
-    @Value("${jwt.refresh.secret}")
-    private String refreshSecret;
 
     @Value("${jwt.refresh.expiration}")
     private long refreshExpiry;
 
+    private final JwtEncoder accessJwtEncoder;
+    private final JwtEncoder refreshJwtEncoder;
+    private final JwtDecoder refreshJwtDecoder;
+
+    public JwtUtil(
+            @Qualifier("accessJwtEncoder") JwtEncoder accessJwtEncoder,
+            @Qualifier("refreshJwtEncoder") JwtEncoder refreshJwtEncoder,
+            @Qualifier("refreshJwtDecoder") JwtDecoder refreshJwtDecoder) {
+        this.accessJwtEncoder = accessJwtEncoder;
+        this.refreshJwtEncoder = refreshJwtEncoder;
+        this.refreshJwtDecoder = refreshJwtDecoder;
+    }
+
     public String generateAccessToken(User user) {
-        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(accessSecret));
-        return Jwts.builder()
-                .subject(String.valueOf(user.getId()))
-                .claim("role",user.getRole().name())
-                .claim(TOKEN_TYPE_CLAIM, ACCESS_TOKEN_TYPE)
-                .issuer(ISSUER)
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis()+ accessExpiry))
-                .signWith(key)
-                .compact();
+        return encodeToken(accessJwtEncoder, String.valueOf(user.getId()), ACCESS_TOKEN_TYPE, accessExpiry, user);
     }
+
     public String generateRefreshToken(User user) {
-        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(refreshSecret));
-        return Jwts.builder()
-                .subject(String.valueOf(user.getEmail()))
-                .claim("role",user.getRole().name())
-                .claim(TOKEN_TYPE_CLAIM, REFRESH_TOKEN_TYPE)
+        return encodeToken(refreshJwtEncoder, user.getEmail(), REFRESH_TOKEN_TYPE, refreshExpiry, user);
+    }
+
+    private String encodeToken(JwtEncoder encoder, String subject, String tokenType, long expiry, User user) {
+        Instant issuedAt = Instant.now();
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .subject(subject)
+                .claim("role", user.getRole().name())
+                .claim(TOKEN_TYPE_CLAIM, tokenType)
                 .issuer(ISSUER)
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis()+ refreshExpiry))
-                .signWith(key)
-                .compact();
-    }
+                .issuedAt(issuedAt)
+                .expiresAt(issuedAt.plusMillis(expiry))
+                .build();
 
-    public boolean isTokenValid(String token) {
-        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(refreshSecret));
-        Jwts.parser().verifyWith(key).build().parseSignedClaims(token); // 1. Parses & checks math here
-        return true;
-    }
-
-    public Claims extractAccessClaims(String token) {
-        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(accessSecret));
-        Claims claims = Jwts.parser()
-                .verifyWith(key)
-                .requireIssuer(ISSUER)
-                .require(TOKEN_TYPE_CLAIM, ACCESS_TOKEN_TYPE)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-
-        if (claims.getSubject() == null || claims.get("role", String.class) == null) {
-            throw new IllegalArgumentException("Access token is missing required claims");
-        }
-
-        return claims;
+        return encoder.encode(JwtEncoderParameters.from(claims))
+                .getTokenValue();
     }
 
     public String extractEmail(String token) {
-        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(refreshSecret));
-        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token) // 2. Parses & checks math AGAIN here
-                .getPayload().getSubject();
+        return refreshJwtDecoder.decode(token).getSubject();
     }
 
 }
