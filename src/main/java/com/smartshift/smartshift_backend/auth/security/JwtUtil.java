@@ -1,6 +1,7 @@
 package com.smartshift.smartshift_backend.auth.security;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,7 +52,7 @@ public class JwtUtil {
         Instant issuedAt = Instant.now();
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .subject(subject)
-                .claim("role", user.getRole().name())
+                .claim("organization_roles", List.of())
                 .claim(TOKEN_TYPE_CLAIM, tokenType)
                 .issuer(ISSUER)
                 .issuedAt(issuedAt)

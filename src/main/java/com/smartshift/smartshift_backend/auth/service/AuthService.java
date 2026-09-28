@@ -1,23 +1,23 @@
 package com.smartshift.smartshift_backend.auth.service;
 
+import java.time.Duration;
+
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.stereotype.Service;
+
 import com.smartshift.smartshift_backend.auth.dto.LoginRequest;
 import com.smartshift.smartshift_backend.auth.dto.LoginResult;
 import com.smartshift.smartshift_backend.auth.dto.RegisterRequest;
-import com.smartshift.smartshift_backend.auth.security.JwtUtil;
-import com.smartshift.smartshift_backend.auth.exception.ResourceConflictException;
-import com.smartshift.smartshift_backend.auth.exception.ResourceNotFoundException;
-import com.smartshift.smartshift_backend.auth.exception.InvalidCredentialsException;
-import com.smartshift.smartshift_backend.auth.entity.Role;
 import com.smartshift.smartshift_backend.auth.entity.User;
+import com.smartshift.smartshift_backend.auth.exception.InvalidCredentialsException;
+import com.smartshift.smartshift_backend.auth.exception.ResourceConflictException; // <-- Injected Redis
+import com.smartshift.smartshift_backend.auth.exception.ResourceNotFoundException;
 import com.smartshift.smartshift_backend.auth.repository.UserRepository;
+import com.smartshift.smartshift_backend.auth.security.JwtUtil;
 
-import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.StringRedisTemplate; // <-- Injected Redis
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-
-import java.time.Duration;
 
 @Service
 @RequiredArgsConstructor
@@ -43,7 +43,6 @@ public class AuthService {
         user.setEmail(request.getEmail());
         user.setName(request.getName());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole(Role.ADMIN);
 
         userRepository.save(user);
     }
@@ -111,7 +110,7 @@ public class AuthService {
                 Duration.ofDays(7)
         );
 
-        return new LoginResult(accessToken, refreshToken, user.getRole().name());
+        return new LoginResult(accessToken, refreshToken, null);
     }
 
     // Helper method to execute the Soft Delete / Revoke logic
